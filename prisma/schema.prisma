@@ -93,6 +93,7 @@ model Organization {
   id   String @id @default(uuid())
   name String
   slug String @unique
+  deletedAt DateTime?
 
   memberships OrganizationMember[]
   branches    Branch[]
