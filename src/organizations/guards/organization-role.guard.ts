@@ -7,12 +7,12 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import type { AuthRequest } from '../../auth/auth.types';
 import {
   MembershipStatus,
   OrganizationRole,
 } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { OrganizationAuthRequest } from '../organization.types';
 import { ORGANIZATION_ROLES_KEY } from '../decorators/organization-roles.decorator';
 
 @Injectable()
@@ -28,7 +28,9 @@ export class OrganizationRoleGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    const request = context.switchToHttp().getRequest<AuthRequest>();
+    const request = context
+      .switchToHttp()
+      .getRequest<OrganizationAuthRequest>();
 
     const organizationId = request.params.organizationId;
 
@@ -48,7 +50,18 @@ export class OrganizationRoleGuard implements CanActivate {
         },
       },
       select: {
+        id: true,
         role: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+        organization: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 
@@ -63,6 +76,8 @@ export class OrganizationRoleGuard implements CanActivate {
         'You do not have permission to perform this action',
       );
     }
+
+    request.organizationMembership = membership;
 
     return true;
   }

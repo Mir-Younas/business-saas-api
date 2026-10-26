@@ -23,7 +23,10 @@ import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import { createAccessToken } from './utils/create-access-token';
-import { createSecureToken, hashToken } from './utils/secure-token.util';
+import {
+  createSecureToken,
+  hashToken,
+} from '../common/utils/secure-token.util';
 
 @Injectable()
 export class AuthService {
