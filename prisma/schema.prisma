@@ -27,8 +27,14 @@ enum OrganizationRole {
 
 enum MembershipStatus {
   ACTIVE
-  INVITED
   SUSPENDED
+}
+
+enum OrganizationInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
 }
 
 model User {
@@ -41,10 +47,11 @@ model User {
   isEmailVerified Boolean      @default(false)
   googleId        String?      @unique
 
-  memberships         OrganizationMember[]
-  sessions            Session[]
-  verificationTokens  EmailVerificationToken[]
-  passwordResetTokens PasswordResetToken[]
+  memberships                 OrganizationMember[]
+  sessions                    Session[]
+  verificationTokens          EmailVerificationToken[]
+  passwordResetTokens         PasswordResetToken[]
+  sentOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationsSent")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -90,13 +97,14 @@ model PasswordResetToken {
 }
 
 model Organization {
-  id   String @id @default(uuid())
-  name String
-  slug String @unique
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
   deletedAt DateTime?
 
   memberships OrganizationMember[]
   branches    Branch[]
+  invitations OrganizationInvitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -137,4 +145,26 @@ model Branch {
 
   @@unique([organizationId, slug])
   @@index([organizationId])
+}
+
+model OrganizationInvitation {
+  id              String                       @id @default(uuid())
+  organizationId  String
+  email           String
+  role            OrganizationRole
+  status          OrganizationInvitationStatus @default(PENDING)
+  tokenHash       String                       @unique
+  invitedByUserId String
+  expiresAt       DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("OrganizationInvitationsSent", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([email])
+  @@index([expiresAt])
 }

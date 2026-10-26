@@ -58,3 +58,11 @@ export type RefundCompletedEmailParams = {
   orderId: string;
   amount: number;
 };
+
+export type OrganizationInvitationEmailParams = {
+  to: string;
+  organizationName: string;
+  inviterName: string;
+  role: string;
+  invitationUrl: string;
+};

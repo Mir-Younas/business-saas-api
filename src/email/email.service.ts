@@ -10,6 +10,7 @@ import type {
   OrderDeliveredEmailParams,
   OrderPlacedEmailParams,
   OrderShippedEmailParams,
+  OrganizationInvitationEmailParams,
   RefundCompletedEmailParams,
   ReturnApprovedEmailParams,
   ReturnReceivedEmailParams,
@@ -203,6 +204,21 @@ export class EmailService {
         'en-PK',
       )} for order ${params.orderId} has been completed.`,
       appName: this.appName,
+    });
+
+    await this.sendEmail(params.to, subject, html);
+  }
+
+  async sendOrganizationInvitationEmail(
+    params: OrganizationInvitationEmailParams,
+  ): Promise<void> {
+    const subject = `${this.appName} Invitation to ${params.organizationName}`;
+
+    const html = buildActionEmailTemplate({
+      heading: `You're invited to join ${params.organizationName}`,
+      message: `${params.inviterName} invited you to join ${params.organizationName} as ${params.role}.`,
+      buttonLabel: 'Accept Invitation',
+      actionUrl: params.invitationUrl,
     });
 
     await this.sendEmail(params.to, subject, html);
