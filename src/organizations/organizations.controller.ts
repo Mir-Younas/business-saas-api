@@ -18,6 +18,8 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationRoleGuard } from './guards/organization-role.guard';
 import { OrganizationsService } from './organizations.service';
+import type { OrganizationAuthRequest } from './organization.types';
+import { TransferOrganizationOwnershipDto } from './dto/transfer-organization-ownership.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('organizations')
@@ -107,6 +109,26 @@ export class OrganizationsController {
     return {
       message: 'Organization deleted successfully',
       organization,
+    };
+  }
+
+  @Patch(':organizationId/ownership')
+  @UseGuards(OrganizationRoleGuard)
+  @OrganizationRoles(OrganizationRole.OWNER)
+  async transferOwnership(
+    @Req() req: OrganizationAuthRequest,
+    @Param('organizationId') organizationId: string,
+    @Body() body: TransferOrganizationOwnershipDto,
+  ) {
+    const result = await this.organizationsService.transferOwnership(
+      organizationId,
+      req.organizationMembership,
+      body.memberId,
+    );
+
+    return {
+      message: 'Organization ownership transferred successfully',
+      ...result,
     };
   }
 }

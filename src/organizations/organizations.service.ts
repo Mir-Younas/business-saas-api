@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { MembershipStatus, OrganizationRole } from '../generated/prisma/client';
@@ -10,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { handlePrismaUniqueError } from '../common/utils/handle-prisma-unique-error';
+import { OrganizationAuthRequest } from './organization.types';
 
 @Injectable()
 export class OrganizationsService {
@@ -235,6 +238,89 @@ export class OrganizationsService {
         createdAt: true,
         updatedAt: true,
       },
+    });
+  }
+
+  async transferOwnership(
+    organizationId: string,
+    requesterMembership: OrganizationAuthRequest['organizationMembership'],
+    targetMemberId: string,
+  ) {
+    if (requesterMembership.id === targetMemberId) {
+      throw new BadRequestException('You are already the organization owner');
+    }
+
+    const targetMember = await this.prisma.organizationMember.findFirst({
+      where: {
+        id: targetMemberId,
+        organizationId,
+      },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!targetMember) {
+      throw new NotFoundException('Organization member not found');
+    }
+
+    if (targetMember.status !== MembershipStatus.ACTIVE) {
+      throw new ConflictException(
+        'Ownership can only be transferred to an active member',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const currentOwner = await tx.organizationMember.updateMany({
+        where: {
+          id: requesterMembership.id,
+          organizationId,
+          role: OrganizationRole.OWNER,
+        },
+        data: {
+          role: OrganizationRole.ADMIN,
+        },
+      });
+
+      if (currentOwner.count !== 1) {
+        throw new ConflictException(
+          'Organization ownership has already changed',
+        );
+      }
+
+      const newOwner = await tx.organizationMember.update({
+        where: {
+          id: targetMember.id,
+        },
+        data: {
+          role: OrganizationRole.OWNER,
+        },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      return {
+        newOwner,
+      };
     });
   }
 }

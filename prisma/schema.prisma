@@ -47,11 +47,12 @@ model User {
   isEmailVerified Boolean      @default(false)
   googleId        String?      @unique
 
-  memberships                 OrganizationMember[]
-  sessions                    Session[]
-  verificationTokens          EmailVerificationToken[]
-  passwordResetTokens         PasswordResetToken[]
-  sentOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationsSent")
+  memberships                      OrganizationMember[]
+  sessions                         Session[]
+  verificationTokens               EmailVerificationToken[]
+  passwordResetTokens              PasswordResetToken[]
+  sentOrganizationInvitations      OrganizationInvitation[] @relation("OrganizationInvitationsSent")
+  cancelledOrganizationInvitations OrganizationInvitation[] @relation("OrganizationInvitationsCancelled")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -148,17 +149,21 @@ model Branch {
 }
 
 model OrganizationInvitation {
-  id              String                       @id @default(uuid())
-  organizationId  String
-  email           String
-  role            OrganizationRole
-  status          OrganizationInvitationStatus @default(PENDING)
-  tokenHash       String                       @unique
-  invitedByUserId String
-  expiresAt       DateTime
+  id                String                       @id @default(uuid())
+  organizationId    String
+  email             String
+  role              OrganizationRole
+  status            OrganizationInvitationStatus @default(PENDING)
+  tokenHash         String?                      @unique
+  invitedByUserId   String
+  cancelledByUserId String?
+  expiresAt         DateTime
+  respondedAt       DateTime?
+  cancelledAt       DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invitedBy    User         @relation("OrganizationInvitationsSent", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  cancelledBy  User?        @relation("OrganizationInvitationsCancelled", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -167,4 +172,5 @@ model OrganizationInvitation {
   @@index([organizationId])
   @@index([email])
   @@index([expiresAt])
+  @@index([cancelledByUserId])
 }
