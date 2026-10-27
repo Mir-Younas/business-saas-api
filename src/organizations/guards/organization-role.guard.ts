@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
@@ -66,9 +67,7 @@ export class OrganizationRoleGuard implements CanActivate {
     });
 
     if (!membership) {
-      throw new ForbiddenException(
-        'You do not have access to this organization',
-      );
+      throw new NotFoundException('Organization not found');
     }
 
     if (requiredRoles?.length && !requiredRoles.includes(membership.role)) {

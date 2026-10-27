@@ -1,40 +1,14 @@
 # Business SaaS API
 
-A production-oriented, multi-tenant business management SaaS backend built with **NestJS**, **Prisma 7**, **PostgreSQL**, and **Docker**.
+A production-oriented, multi-tenant business management backend built with **NestJS**, **Prisma 7**, **PostgreSQL**, and **Docker**.
 
-The project is designed for service-based businesses such as salons, clinics, tutors, consultants, and similar organizations that need to manage teams, branches, customers, services, schedules, and bookings.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Current Features](#current-features)
-- [Architecture](#architecture)
-- [Database Models](#database-models)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Environment Variables](#environment-variables)
-- [Prisma Setup](#prisma-setup)
-- [Running Locally](#running-locally)
-- [Docker](#docker)
-- [Authentication](#authentication)
-- [API Endpoints](#api-endpoints)
-- [Scripts](#scripts)
-- [Testing](#testing)
-- [Security](#security)
-- [Roadmap](#roadmap)
-- [License](#license)
+The project is designed for service-based businesses such as salons, clinics, tutors, consultants, and similar organizations that need secure authentication, team management, branches, customers, services, schedules, and bookings.
 
 ---
 
 ## Overview
 
-The backend uses a multi-tenant architecture where a single user can belong to multiple organizations and can have a different role in each organization.
-
-Example:
+The API uses a multi-tenant architecture where one user can belong to multiple organizations and have a different role in each organization.
 
 ```text
 User
@@ -43,16 +17,16 @@ User
 └── Organization C → STAFF
 ```
 
-Platform-level roles and organization-level roles are intentionally separated.
+Platform-level authorization and organization-level authorization are intentionally separated.
 
-### Platform roles
+### Platform Roles
 
 ```text
 USER
 SUPER_ADMIN
 ```
 
-### Organization roles
+### Organization Roles
 
 ```text
 OWNER
@@ -60,6 +34,13 @@ ADMIN
 MANAGER
 RECEPTIONIST
 STAFF
+```
+
+### Membership Statuses
+
+```text
+ACTIVE
+SUSPENDED
 ```
 
 ---
@@ -105,20 +86,17 @@ STAFF
 ### Authentication
 
 - Email/password signup
-- Email verification
-- Verification-email resend
-- Login
-- Logout
+- Email verification and resend flow
+- Login and logout
 - Access-token authentication
 - Refresh-token sessions
+- Multi-device sessions
 - HttpOnly authentication cookies
-- Forgot-password flow
-- Password reset
+- Forgot-password and password-reset flows
 - Google OAuth
 - Blocked-user protection
-- Multi-device sessions
 
-### Authentication token lifetimes
+Token lifetimes:
 
 | Token | Lifetime |
 |---|---:|
@@ -127,33 +105,99 @@ STAFF
 | Email verification token | 24 hours |
 | Password reset token | 15 minutes |
 
-Refresh tokens, email-verification tokens, and password-reset tokens are stored as **hashes**, not as raw tokens.
+Refresh tokens, email-verification tokens, and password-reset tokens are stored as hashes rather than raw values.
+
+### Organizations
+
+- Create organizations
+- List accessible organizations
+- Retrieve organization details
+- Update organizations
+- Soft delete organizations
+- Restore deleted organizations
+- Organization-level role authorization
+- Ownership transfer
+- Protection against modifying the owner through normal member-management endpoints
+
+### Organization Invitations
+
+- Invite users by email
+- Secure HMAC-hashed invitation tokens
+- Invitation expiration
+- Invitation email delivery
+- Accept invitations
+- Decline invitations
+- List invitation history
+- Resend pending invitations
+- Cancel pending invitations
+- Track who sent and cancelled invitations
+- Invalidate invitation tokens after processing
+- Race-condition protection for invitation creation and processing
+- Role hierarchy enforcement
+
+Invitation statuses:
+
+```text
+PENDING
+ACCEPTED
+DECLINED
+CANCELLED
+```
+
+### Organization Members
+
+- List members
+- Retrieve an individual member
+- Update member roles
+- Activate or suspend memberships
+- Remove members
+- Leave an organization
+- OWNER/ADMIN management hierarchy
+- Separate ownership-transfer flow
 
 ---
 
 ## Architecture
 
-Current multi-tenant relationship:
+Core multi-tenant relationship:
 
 ```text
 User
-  │
-  └── OrganizationMember
-          │
-          └── Organization
-                  │
-                  └── Branch
+ │
+ ├── OrganizationMember
+ │        │
+ │        └── Organization
+ │                │
+ │                └── Branch
+ │
+ └── OrganizationInvitation
 ```
 
-`OrganizationMember` connects a user to an organization and stores the user's role and membership status for that organization.
+`OrganizationMember` connects a user to an organization and stores the user's organization-specific role and membership status.
 
-This allows the same account to have different permissions in different organizations.
+`OrganizationInvitation` manages the invitation lifecycle before a user becomes an organization member.
+
+Authorization flow:
+
+```text
+JWT Authentication
+        ↓
+Authenticated User
+        ↓
+OrganizationRoleGuard
+        ↓
+Active Organization Membership
+        ↓
+Required Organization Role
+        ↓
+Controller
+```
 
 ---
 
 ## Database Models
 
-The current Prisma schema contains:
+Current Prisma models:
 
 ```text
 User
@@ -162,10 +206,11 @@ EmailVerificationToken
 PasswordResetToken
 Organization
 OrganizationMember
+OrganizationInvitation
 Branch
 ```
 
-Prisma migrations are committed under:
+Prisma migrations are stored under:
 
 ```text
 prisma/migrations/
@@ -177,7 +222,7 @@ The generated Prisma client is created under:
 src/generated/prisma/
 ```
 
-Generated Prisma files are **not committed to Git** and should not be edited manually.
+Generated Prisma files are not committed to Git and should not be edited manually.
 
 ---
 
@@ -191,61 +236,32 @@ business-saas-api/
 │
 ├── src/
 │   ├── auth/
-│   │   ├── constants/
+│   ├── common/
+│   ├── email/
+│   ├── generated/
+│   ├── organizations/
+│   │   ├── decorators/
 │   │   ├── dto/
 │   │   ├── guards/
-│   │   ├── strategies/
-│   │   ├── utils/
-│   │   ├── auth.controller.ts
-│   │   ├── auth.module.ts
-│   │   ├── auth.service.ts
-│   │   └── auth.types.ts
-│   │
-│   ├── common/
-│   │   ├── decorators/
-│   │   └── utils/
-│   │
-│   ├── email/
-│   │   ├── templates/
-│   │   ├── types/
-│   │   ├── utils/
-│   │   ├── email.module.ts
-│   │   └── email.service.ts
-│   │
-│   ├── generated/
-│   │   └── prisma/
-│   │
+│   │   ├── invitations/
+│   │   ├── members/
+│   │   ├── organizations.controller.ts
+│   │   ├── organizations.module.ts
+│   │   └── organizations.service.ts
 │   ├── prisma/
-│   │   ├── prisma.module.ts
-│   │   └── prisma.service.ts
-│   │
 │   ├── app.module.ts
 │   └── main.ts
 │
 ├── test/
-│   └── jest-e2e.json
-│
-├── .dockerignore
-├── .env.example
-├── .gitignore
-├── .npmrc
-├── .prettierrc
 ├── Dockerfile
-├── README.md
-├── eslint.config.mjs
-├── nest-cli.json
 ├── package.json
-├── package-lock.json
 ├── prisma7.config.ts
-├── tsconfig.build.json
-└── tsconfig.json
+└── README.md
 ```
 
 ---
 
 ## Prerequisites
-
-Required runtime versions:
 
 ```text
 Node.js >= 22.14.0
@@ -259,13 +275,11 @@ node -v
 npm -v
 ```
 
-If you use NVM:
+If using NVM:
 
 ```bash
 nvm use 22
 ```
-
-The required Node.js and npm versions are also declared in `package.json`.
 
 ---
 
@@ -275,11 +289,6 @@ Clone the repository:
 
 ```bash
 git clone <repository-url>
-```
-
-Enter the project:
-
-```bash
 cd business-saas-api
 ```
 
@@ -289,7 +298,7 @@ Install dependencies:
 npm install
 ```
 
-Create your environment file:
+Create the environment file.
 
 ### Windows PowerShell
 
@@ -303,15 +312,11 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-Then fill in the required values.
+Then configure the required environment variables.
 
 ---
 
 ## Environment Variables
-
-The application reads configuration from `.env`.
-
-Do not commit the real `.env` file. Only `.env.example` should be committed.
 
 ### Application
 
@@ -319,43 +324,42 @@ Do not commit the real `.env` file. Only `.env.example` should be committed.
 |---|---|---|
 | `NODE_ENV` | Application environment | `development` |
 | `PORT` | API port | `8080` |
-| `APP_NAME` | Application name used by services such as email | `Business SaaS` |
+| `APP_NAME` | Application name | `Business SaaS` |
 | `API_URL` | Backend base URL | `http://localhost:8080` |
-| `CLIENT_URL` | Frontend application URL | `http://localhost:3000` |
+| `CLIENT_URL` | Frontend base URL | `http://localhost:3000` |
 
 ### PostgreSQL
 
-| Variable | Description | Example |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL connection string used by Prisma | `postgresql://username:password@host:5432/database` |
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string used by Prisma |
 
-For Neon, use the PostgreSQL connection string provided by the Neon dashboard.
-
-### Authentication
+### Authentication and Token Security
 
 | Variable | Description |
 |---|---|
-| `JWT_ACCESS_SECRET` | Secret used to sign JWT access tokens |
-| `REFRESH_TOKEN_HASH_SECRET` | Secret used to hash refresh tokens |
-| `EMAIL_VERIFICATION_TOKEN_HASH_SECRET` | Secret used to hash email-verification tokens |
-| `PASSWORD_RESET_TOKEN_HASH_SECRET` | Secret used to hash password-reset tokens |
+| `JWT_ACCESS_SECRET` | Signs JWT access tokens |
+| `REFRESH_TOKEN_HASH_SECRET` | Hashes refresh tokens |
+| `EMAIL_VERIFICATION_TOKEN_HASH_SECRET` | Hashes email-verification tokens |
+| `PASSWORD_RESET_TOKEN_HASH_SECRET` | Hashes password-reset tokens |
+| `ORGANIZATION_INVITATION_TOKEN_HASH_SECRET` | Hashes organization-invitation tokens |
 
-Generate secure secrets with:
+Generate independent secrets with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-Run the command separately for each secret so every value is different.
+Use a different generated value for each secret.
 
 ### Google OAuth
 
-| Variable | Description | Example |
-|---|---|---|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | `your-google-client-id` |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | `your-google-client-secret` |
+| Variable | Description |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
-For local development, the Google callback URL is:
+Local callback:
 
 ```text
 http://localhost:8080/auth/google/callback
@@ -363,48 +367,34 @@ http://localhost:8080/auth/google/callback
 
 ### SMTP
 
-| Variable | Description | Example |
-|---|---|---|
-| `SMTP_HOST` | SMTP server hostname | `smtp.gmail.com` |
-| `SMTP_PORT` | SMTP server port | `587` |
-| `SMTP_USER` | SMTP account username/email | `example@gmail.com` |
-| `SMTP_PASS` | SMTP password or app password | `your-app-password` |
-| `SMTP_FROM` | Sender shown in outgoing emails | `Business SaaS <example@gmail.com>` |
+| Variable | Description |
+|---|---|
+| `SMTP_HOST` | SMTP server hostname |
+| `SMTP_PORT` | SMTP server port |
+| `SMTP_USER` | SMTP account username/email |
+| `SMTP_PASS` | SMTP password or app password |
+| `SMTP_FROM` | Sender shown in outgoing emails |
 
-### Complete `.env` example
+Example:
 
 ```env
-# --------------------------------------------------
-# Application
-# --------------------------------------------------
 NODE_ENV=development
 PORT=8080
 APP_NAME=Business SaaS
 API_URL=http://localhost:8080
 CLIENT_URL=http://localhost:3000
 
-# --------------------------------------------------
-# PostgreSQL
-# --------------------------------------------------
 DATABASE_URL=postgresql://username:password@host:5432/database
 
-# --------------------------------------------------
-# Authentication
-# --------------------------------------------------
 JWT_ACCESS_SECRET=replace-with-a-secure-random-secret
 REFRESH_TOKEN_HASH_SECRET=replace-with-a-different-secure-random-secret
 EMAIL_VERIFICATION_TOKEN_HASH_SECRET=replace-with-a-different-secure-random-secret
 PASSWORD_RESET_TOKEN_HASH_SECRET=replace-with-a-different-secure-random-secret
+ORGANIZATION_INVITATION_TOKEN_HASH_SECRET=replace-with-a-different-secure-random-secret
 
-# --------------------------------------------------
-# Google OAuth
-# --------------------------------------------------
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# --------------------------------------------------
-# SMTP
-# --------------------------------------------------
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=example@gmail.com
@@ -412,143 +402,11 @@ SMTP_PASS=your-app-password
 SMTP_FROM=Business SaaS <example@gmail.com>
 ```
 
+Do not commit the real `.env` file.
+
 ---
 
 ## Prisma Setup
-
-The project uses Prisma 7 with PostgreSQL.
-
-### Prisma schema
-
-```text
-prisma/schema.prisma
-```
-
-### Generated Prisma client
-
-```text
-src/generated/prisma/
-```
-
-### NestJS Prisma integration
-
-```text
-src/prisma/
-```
-
-The Prisma schema is the source of truth for generated Prisma types, model delegates, enums, and database migrations.
-
-### Generate Prisma Client
-
-The generated Prisma client is not committed to Git.
-
-After cloning the repository, run:
-
-```bash
-npx prisma generate
-```
-
-Run the same command again whenever `prisma/schema.prisma` changes:
-
-```bash
-npx prisma generate
-```
-
-This generates:
-
-```text
-src/generated/prisma/
-```
-
-Do not manually edit files inside this directory.
-
-### Create Development Migrations
-
-When the Prisma schema changes during development:
-
-```bash
-npx prisma migrate dev --name migration_name
-```
-
-Example:
-
-```bash
-npx prisma migrate dev --name add_auth_foundation
-```
-
-This:
-
-```text
-reads prisma/schema.prisma
-        ↓
-creates a migration
-        ↓
-stores it in prisma/migrations/
-        ↓
-applies it to the development database
-```
-
-Migration files should be committed to Git.
-
-### Apply Existing Migrations
-
-To apply migrations that already exist in `prisma/migrations/` without creating new migrations:
-
-```bash
-npx prisma migrate deploy
-```
-
-This is the command used for deployment and production environments.
-
-It:
-
-```text
-reads committed migrations
-        ↓
-checks which migrations are missing
-        ↓
-applies missing migrations
-        ↓
-does not create new migration files
-```
-
-### Prisma: Local vs Docker
-
-Local development:
-
-```text
-npm install
-    ↓
-npx prisma generate
-    ↓
-npx prisma migrate dev
-    ↓
-npm run start:dev
-```
-
-Docker build:
-
-```text
-npm ci
-    ↓
-npx prisma generate
-    ↓
-npm run build
-```
-
-Docker container startup:
-
-```text
-npx prisma migrate deploy
-        ↓
-start NestJS API
-```
-
-When using Docker, Prisma client generation and migration deployment are handled automatically.
-
----
-
-## Running Locally
 
 Generate the Prisma client:
 
@@ -556,15 +414,27 @@ Generate the Prisma client:
 npx prisma generate
 ```
 
-Apply development migrations:
+Create and apply a development migration after schema changes:
 
 ```bash
-npx prisma migrate dev
+npx prisma migrate dev --name migration_name
 ```
 
-Start the development server:
+Apply committed migrations in deployment environments:
 
 ```bash
+npx prisma migrate deploy
+```
+
+Migration files should be committed to Git. Generated Prisma client files should not be committed.
+
+---
+
+## Running Locally
+
+```bash
+npx prisma generate
+npx prisma migrate dev
 npm run start:dev
 ```
 
@@ -578,198 +448,28 @@ http://localhost:8080
 
 ## Docker
 
-The project includes a production-oriented multi-stage Dockerfile.
-
-### Docker build flow
-
-```text
-Base image
-    ↓
-Install all dependencies
-    ↓
-Generate Prisma client
-    ↓
-Build NestJS application
-    ↓
-Install production-only dependencies
-    ↓
-Create final runtime image
-```
-
-### Build the image
+Build:
 
 ```bash
 docker build -t business-saas-api .
 ```
 
-### Run the container
+Run:
 
 ```bash
 docker run --env-file .env -p 8080:8080 business-saas-api
 ```
 
-When the container starts:
+The production image:
 
-```text
-read DATABASE_URL
-        ↓
-npx prisma migrate deploy
-        ↓
-apply missing committed migrations
-        ↓
-start NestJS API
-```
+- Uses a multi-stage build
+- Generates the Prisma client during build
+- Installs production-only dependencies in the runtime image
+- Applies committed migrations with `prisma migrate deploy`
+- Runs as the non-root `node` user
+- Does not copy `.env` into the image
 
-If migration deployment fails, the API does not start.
-
-The API is available at:
-
-```text
-http://localhost:8080
-```
-
-The PostgreSQL database is external. Docker does not currently start its own PostgreSQL container.
-
-### Docker security
-
-- `.env` is not copied into the image.
-- Secrets are supplied at runtime.
-- The final production container runs as the non-root `node` user.
-- Development dependencies are excluded from the final runtime image.
-
----
-
-## Authentication
-
-### Signup flow
-
-```text
-Signup request
-      ↓
-Validate DTO
-      ↓
-Check existing email
-      ↓
-Hash password with bcrypt
-      ↓
-Create user
-      ↓
-Create email-verification token
-      ↓
-Store token hash
-      ↓
-Send verification email
-```
-
-The database unique constraint protects against duplicate-email race conditions.
-
-### Login flow
-
-```text
-Login request
-      ↓
-Validate credentials
-      ↓
-Check account status
-      ↓
-Check email verification
-      ↓
-Create access token
-      ↓
-Create refresh session
-      ↓
-Store refresh-token hash
-      ↓
-Set HttpOnly cookies
-```
-
-Each login creates a separate session, which allows multi-device authentication.
-
-### Refresh flow
-
-```text
-Refresh cookie
-      ↓
-Hash supplied refresh token
-      ↓
-Find session
-      ↓
-Check session expiry
-      ↓
-Check user status
-      ↓
-Create new access token
-      ↓
-Replace access-token cookie
-```
-
-Expired sessions are removed when detected.
-
-### Logout flow
-
-```text
-Refresh cookie
-      ↓
-Hash refresh token
-      ↓
-Delete matching session
-      ↓
-Clear authentication cookies
-```
-
-Only the matching session is deleted, allowing other device sessions to remain active.
-
-### Email verification flow
-
-```text
-Verification link
-      ↓
-Hash supplied verification token
-      ↓
-Find verification-token record
-      ↓
-Check expiry
-      ↓
-Mark email as verified
-      ↓
-Delete verification tokens
-```
-
-### Password-reset flow
-
-```text
-Forgot-password request
-      ↓
-Create secure reset token
-      ↓
-Store token hash
-      ↓
-Send reset email
-      ↓
-User submits new password
-      ↓
-Validate reset token
-      ↓
-Hash new password
-      ↓
-Update password
-      ↓
-Delete all user sessions
-      ↓
-Delete reset token
-```
-
-Password reset invalidates all existing sessions so the user must log in again.
-
-### Google OAuth
-
-Google OAuth uses Passport with:
-
-```text
-passport-google-oauth20
-```
-
-Google-authenticated users are treated as email verified.
+The PostgreSQL database is external and is not started by this Docker image.
 
 ---
 
@@ -780,26 +480,76 @@ Google-authenticated users are treated as email verified.
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/auth/signup` | Create an account |
-| `POST` | `/auth/login` | Log in with email/password |
+| `POST` | `/auth/login` | Log in |
 | `POST` | `/auth/logout` | Log out the current session |
 | `POST` | `/auth/refresh` | Create a new access token |
 | `GET` | `/auth/me` | Return the authenticated user |
 | `POST` | `/auth/verify-email` | Verify an email address |
-| `POST` | `/auth/resend-verification-email` | Send a new verification email |
-| `POST` | `/auth/forgot-password` | Request a password-reset email |
-| `POST` | `/auth/reset-password` | Reset the account password |
+| `POST` | `/auth/resend-verification-email` | Resend verification email |
+| `POST` | `/auth/forgot-password` | Request password reset |
+| `POST` | `/auth/reset-password` | Reset password |
 | `GET` | `/auth/google` | Start Google OAuth |
 | `GET` | `/auth/google/callback` | Google OAuth callback |
 
-More business-management endpoints will be added as the SaaS modules are implemented.
+### Organizations
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/organizations` | Create an organization |
+| `GET` | `/organizations` | List accessible organizations |
+| `GET` | `/organizations/deleted` | List deleted organizations owned by the user |
+| `GET` | `/organizations/:organizationId` | Get organization details |
+| `PATCH` | `/organizations/:organizationId` | Update an organization |
+| `DELETE` | `/organizations/:organizationId` | Soft delete an organization |
+| `PATCH` | `/organizations/:organizationId/restore` | Restore a deleted organization |
+| `PATCH` | `/organizations/:organizationId/ownership` | Transfer ownership |
+
+### Organization Invitations
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/organizations/:organizationId/invitations` | Create an invitation |
+| `GET` | `/organizations/:organizationId/invitations` | List invitations |
+| `POST` | `/organizations/:organizationId/invitations/:invitationId/resend` | Resend a pending invitation |
+| `DELETE` | `/organizations/:organizationId/invitations/:invitationId` | Cancel a pending invitation |
+| `POST` | `/organization-invitations/accept` | Accept an invitation |
+| `POST` | `/organization-invitations/decline` | Decline an invitation |
+
+### Organization Members
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/organizations/:organizationId/members` | List members |
+| `GET` | `/organizations/:organizationId/members/:memberId` | Get one member |
+| `PATCH` | `/organizations/:organizationId/members/:memberId/role` | Update a member role |
+| `PATCH` | `/organizations/:organizationId/members/:memberId/status` | Update membership status |
+| `DELETE` | `/organizations/:organizationId/members/me` | Leave an organization |
+| `DELETE` | `/organizations/:organizationId/members/:memberId` | Remove a member |
+
+---
+
+## Authorization Rules
+
+### OWNER
+
+- Can manage ADMIN, MANAGER, RECEPTIONIST, and STAFF members
+- Can assign the ADMIN role
+- Can transfer organization ownership
+
+### ADMIN
+
+- Cannot manage the OWNER
+- Cannot manage another ADMIN
+- Cannot assign the ADMIN or OWNER role
+- Can manage MANAGER, RECEPTIONIST, and STAFF members
+
+The `OWNER` role cannot be assigned through normal invitation or member-role update endpoints.
 
 ---
 
 ## Validation
 
-Global request validation is enabled using NestJS `ValidationPipe`.
-
-Current configuration:
+Global request validation uses NestJS `ValidationPipe` with:
 
 ```text
 whitelist: true
@@ -807,62 +557,32 @@ forbidNonWhitelisted: true
 transform: true
 ```
 
-This provides:
-
-- DTO validation
-- rejection of unexpected properties
-- request transformation
-- string trimming
-- email normalization
+This provides DTO validation, unexpected-property rejection, request transformation, string normalization, and email normalization.
 
 ---
 
-## Cookies
+## Security
 
-Authentication tokens are stored in HttpOnly cookies.
+Current security practices include:
 
-### Development
-
-```text
-secure: false
-sameSite: lax
-```
-
-### Production
-
-```text
-secure: true
-sameSite: none
-```
-
-Frontend HTTP clients must send credentials.
-
-Axios example:
-
-```ts
-axios.create({
-  baseURL: 'http://localhost:8080',
-  withCredentials: true,
-});
-```
-
----
-
-## CORS
-
-CORS uses the frontend URL provided by:
-
-```env
-CLIENT_URL=
-```
-
-Credentials are enabled so authentication cookies can be sent between the frontend and backend.
-
-Local example:
-
-```env
-CLIENT_URL=http://localhost:3000
-```
+- Password hashing with bcrypt
+- HttpOnly authentication cookies
+- Secure cookies in production
+- Hashed refresh, verification, reset, and invitation tokens
+- Invitation token invalidation after acceptance, decline, or cancellation
+- Separate secrets for different token types
+- Global DTO validation
+- Blocked-user checks during authentication
+- Session invalidation after password reset
+- Database unique constraints for race-condition protection
+- Conditional writes for invitation race-condition protection
+- Organization membership and role guards
+- Soft-deleted organization access protection
+- Organization role hierarchy enforcement
+- Runtime environment secrets
+- `.env` excluded from Git and Docker build context
+- Generated Prisma client excluded from Git
+- Non-root production Docker container
 
 ---
 
@@ -871,82 +591,25 @@ CLIENT_URL=http://localhost:3000
 | Command | Description |
 |---|---|
 | `npm run start` | Start the NestJS application |
-| `npm run start:dev` | Start development mode with watch |
-| `npm run start:debug` | Start in debug/watch mode |
-| `npm run start:prod` | Start the compiled production application |
-| `npm run build` | Build the NestJS application |
-| `npm run format` | Format source and test files with Prettier |
+| `npm run start:dev` | Start development mode |
+| `npm run start:debug` | Start debug/watch mode |
+| `npm run start:prod` | Start compiled production application |
+| `npm run build` | Build the application |
+| `npm run format` | Format source and test files |
 | `npm run lint` | Lint source and tests |
 | `npm run lint:src` | Lint application source |
 | `npm run lint:test` | Lint tests |
-| `npm run lint:fix` | Automatically fix lint issues where possible |
+| `npm run lint:fix` | Automatically fix lint issues |
 | `npm test` | Run Jest tests |
-| `npm run test:watch` | Run Jest in watch mode |
+| `npm run test:watch` | Run tests in watch mode |
 | `npm run test:cov` | Run tests with coverage |
-| `npm run test:debug` | Run Jest in debug mode |
 | `npm run test:e2e` | Run end-to-end tests |
-
----
-
-## Testing
-
-### Unit tests
-
-```bash
-npm test
-```
-
-### Watch mode
-
-```bash
-npm run test:watch
-```
-
-### Coverage
-
-```bash
-npm run test:cov
-```
-
-### End-to-end tests
-
-```bash
-npm run test:e2e
-```
-
-End-to-end Jest configuration is stored in:
-
-```text
-test/jest-e2e.json
-```
-
----
-
-## Security
-
-The project currently follows these practices:
-
-- Passwords are hashed with bcrypt.
-- Raw refresh tokens are not stored.
-- Raw verification tokens are not stored.
-- Raw password-reset tokens are not stored.
-- Authentication cookies are HttpOnly.
-- Secure cookies are enabled in production.
-- DTO validation is enabled globally.
-- Unexpected DTO properties are rejected.
-- User status is checked during authentication.
-- Password reset invalidates all active sessions.
-- Database unique constraints protect unique fields.
-- Authentication secrets are loaded from environment variables.
-- `.env` is excluded from Git and Docker build context.
-- Generated Prisma client files are excluded from Git.
-- Production Docker containers run as a non-root user.
 
 ---
 
 ## Roadmap
 
-### Current foundation
+### Current Foundation
 
 ```text
 NestJS
@@ -958,22 +621,25 @@ Google OAuth
 Docker
 Validation
 CORS
-```
-
-### Next modules
-
-```text
 Organizations
 Organization authorization
-Branches
-Staff
+Organization invitations
+Organization memberships
+Role-based access control
+Ownership transfer
+```
+
+### Next Modules
+
+```text
+Branch management
 Services
 Customers
 Schedules / availability
 Bookings
 ```
 
-### Later phases
+### Later Phases
 
 ```text
 Payments
